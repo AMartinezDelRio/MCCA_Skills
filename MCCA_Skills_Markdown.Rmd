@@ -174,9 +174,12 @@ summary(FullMCCA_ScoreRegression)
 
 ## Moving files up to GitHub
 
-To create a new branch, changed files and commit the changes with an informative message, and push the changes, I would run the following commands:
+To create a new branch, changed files and commit the changes with a message, and push the changes, I would run the following commands:
 
 git branch technical-screen
 
+git add .
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+git commit -m "This is the updated version of the technical screen Notebook, updated 2/22/2025"
+
+git push -u origin technical-screen
