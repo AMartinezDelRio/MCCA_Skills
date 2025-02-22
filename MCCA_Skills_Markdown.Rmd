@@ -1,0 +1,182 @@
+---
+title: "MCCA Technical Screen - Aurora Martinez del Rio"
+author: "Aurora Martinez del Rio"
+date: "`r Sys.Date()`"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting Started
+
+After loading in my data sets and libraries for data manipulation, statistics, and visualization, the two different data sets are combined using the shared firm name key. Before doing any exploratory data analysis, I also added two additional columns: 1) the proportion of minority attorneys in each firm and 2) the proportion of female attorneys in each firm. 
+
+```{r UsefulLibaries, include=FALSE}
+
+
+library(Rmisc) #good for grouping things and summaries!
+library(tidyverse) #tidy data and piping
+library(languageR) #regressions
+library(ggplot2) #graphs!
+library(psych) #summary stats!
+library (lmerTest) # Mixed model package by Douglas Bates, comes w/ pvalues! 
+library (texreg) #Helps us make tables of the mixed models
+library (afex) # Easy ANOVA package to compare model fits - probably not needed
+library(stargazer)
+library(contrastable)
+
+
+```
+
+
+```{r loadingData, include=FALSE}
+
+#loading the data
+AttributesSet = read_csv("dat_attributes.csv")
+ScoreSet = read_csv("dat_score.csv")
+
+FullData <- left_join(AttributesSet, ScoreSet, by="firm_name")
+
+FullData = FullData %>%
+  mutate(PropMinority = count_minority/count_attorneys) %>%
+  mutate(PropFemale = count_female/count_attorneys)
+
+
+```
+
+## Data Exploration
+
+Some introductory data exploration shows fairly wide variation in the size of firms, with firm size ranging from `r min(FullData$count_attorneys)` to `r max(FullData$count_attorneys)`. MCCA scores have a wide distributions between 0 and 1, with the median falling almost exactly halfway between the two highest and lowest scores. This suggests considerable differences in performance metrics across the different firms, with scores distributed fairly equally across the possible values.
+
+There Descriptive stats also show considerably more programs without DEI programs (651) than with DEI programs (169). The average number of minority attorneys (mean: 75.43) at the firms within the data set was much smaller than the number of female attorneys (mean: 250). A similar difference was seen between the average proportion of minority attorneys at each firm (mean: 15%) when comparing it to the average proportion of female attorneys (mean: 50%).
+
+An overview of some of the data sets descriptive statistics can be seen below: 
+
+```{r QuickSummaryStats, echo=FALSE}
+#First, some basic summary stats
+DataSet_Summary <- summary(FullData)
+print(DataSet_Summary)
+
+```
+
+As, later, we will be performing statistical analysis on the data, we also want to check the distribution of the variables of interest for skew. This also provides a better idea of the distribution of the different variables I'm looking at. As seen by the values below, none of the variables are not strongly skewed. However, the count of minority attorneys at each firm is slightly right skewed, with firms trending towards having a smaller number of minority attorneys. This trend is shown through a density plot as well.
+
+```{r SkewStats, echo=FALSE}
+###checking for skew in the data set I'm using. 
+library(moments)
+print("Skew for the number of minority attorneys, followed by kurtosis")
+skewness(FullData$count_minority)
+kurtosis(FullData$count_minority)
+
+print("Skew of the count of female attorneys")
+skewness(FullData$count_female)
+
+print("Skew of the MCCA score")
+skewness(FullData$mcca_score)
+
+#Density plot for most skewed variable: count of minority attorneys
+FullData %>%
+  ggplot( aes(x=count_minority)) +
+    geom_density()
+
+
+```
+
+## Visualizing trends in the data
+
+Below are a series of data visualizations. These include a couple of scatter plots mapping the relationship between the number of female attorneys to total number of attorneys in each firm, as well as the number of minority attorneys to the total number of attorneys in each firm. A regression line is included for both of these. Interestingly, there appears to be a steeper positive relationship between the number of female attorneys at each firm and total number of attorneys, than there is between the number of minority attorneys and total number of attorneys.
+
+Each firm's MCCA score is also plotted alongside the proportion of minority attorneys and, separately, proportion of female attorneys. At first glace, there doesn't seem to be a strong relationship between these variables, in either a positive or negative directions.
+
+```{r Plots, echo=FALSE, message=FALSE, warning = FALSE}
+##Count of attorneys and count female
+ggplot(FullData, aes(x=count_attorneys, y=count_female)) + 
+    geom_point()+ geom_smooth(method="lm")+
+  ggtitle("Firm size vs. number of Female Attorneys") + theme(plot.title = element_text(hjust = 0.5)) +xlab("Count of Attorneys")+ylab("Count of Female Employees")+ ylim(0, 750)
+
+##Count of attorneys and count minority
+ggplot(FullData, aes(x=count_attorneys, y=count_minority)) + 
+    geom_point()+ geom_smooth(method="lm")+
+  ggtitle("Firm size vs. number of Minority Attorneys") + theme(plot.title = element_text(hjust = 0.5)) +xlab("Count of Attorneys")+ylab("Count of Minority Attorneys")+ ylim(0, 700)
+
+##Count of attorneys and count female, distinguishing between programs that do and do not have DEI programs
+ggplot(FullData, aes(x=count_attorneys, y=count_female, color=binary_has_dei_program), show.legend = FALSE) + 
+    geom_point()+ geom_smooth(method="lm")+
+  ggtitle("Firm size vs. number of Female Attorneys") + theme(plot.title = element_text(hjust = 0.5)) +xlab("Count of Attorneys")+ylab("Count of Female Employees")+ ylim(0, 750)
+
+##Count of attorneys and count minority, distinguishing between programs that do and do not have DEI programs
+ggplot(FullData, aes(x=count_attorneys, y=count_minority, color=binary_has_dei_program)) + 
+    geom_point()+ geom_smooth(method="lm")+
+  ggtitle("Firm size vs. number of Minority Attorneys") + theme(plot.title = element_text(hjust = 0.5)) +xlab("Count of Attorneys")+ylab("Count of Minority Attorneys")+ ylim(0, 700)
+
+#MCCA score vs proportion of minority attorneys
+ggplot(FullData, aes(x=mcca_score, y=PropMinority)) + 
+    geom_point()+ geom_smooth(method="lm")+
+  ggtitle("MCCA score vs. proportion of minority attorneys")  +xlab("MCCA Score")+ylab("Proportion Minority Attorneys")+ylim(0, 0.5)
+
+#MCCA score vs proportion of female attorneys
+ggplot(FullData, aes(x=mcca_score, y=PropFemale)) + 
+    geom_point()+ geom_smooth(method="lm")+
+  ggtitle("MCCA score vs. proportion of female attorneys")  +xlab("MCCA Score")+ylab("Proportion Female Attorneys")+ylim(0, 0.8)
+
+#MCCA score vs count of female attorneys
+ggplot(FullData, aes(x=mcca_score, y=count_female)) + 
+    geom_point()+ geom_smooth(method="lm")+
+  ggtitle("MCCA score vs. number of female attorneys")  +xlab("MCCA Score")+ylab("Proportion Female Attorneys")+ylim(0, 700)
+
+#MCCA score vs count of female attorneys
+ggplot(FullData, aes(x=mcca_score, y=count_minority)) + 
+    geom_point()+ geom_smooth(method="lm")+
+  ggtitle("MCCA score vs. number of minority attorneys")  +xlab("MCCA Score")+ylab("Proportion Female Attorneys")+ylim(0, 400)
+
+
+```
+
+The series of scatter plots are followed by a histogram looking at the relationship between average MCCA score and whether or not a firm has a DEI program. Aside from differences in variance between the sets of firms with and without DEI programs, the plot does not show a considerable difference in averages. This is followed by a set of histograms looking at the relationship between the proportion of firms that are female or are minorities, dividing the data by whether or not the firm has a DEI program.  Visual examination of these visuals doesn't reveal prominent differences between average proportions of female attorneys for firms with and without DEI programs, nor does it show a prominent different in between the proportion of minority attorneys at firms with and without DEI programs.
+
+```{r PlotsHistograms, echo=FALSE, message=FALSE}
+Bar_Score_DEI=summarySE(data = FullData, measurevar = "mcca_score", groupvars = c( "binary_has_dei_program"))
+#ggplot(Bar_Score_DEI, aes(x=binary_has_dei_program, y=mcca_score, group=1)) +  geom_errorbar(aes(ymin=mcca_score-ci, ymax=mcca_score+ci), width=.1) + theme_bw()+ geom_line()+ylab("MCCA score")+xlab("Presence of DEI Program") + scale_y_continuous(limit = c(0, 0.6))+ ggtitle("Average MCCA score by Presence of DEI program") + theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(Bar_Score_DEI, aes(x=binary_has_dei_program, y=mcca_score, color=binary_has_dei_program)) +  geom_errorbar(aes(ymin=mcca_score-ci, ymax=mcca_score+ci), width=.1) +  geom_bar(stat = "identity", position = "stack")+ylab("Average MCCA score")+xlab("Presence of DEI Program") + ggtitle("Average MCCA score by Presence of DEI program") + theme(plot.title = element_text(hjust = 0.5))+ 
+  geom_bar(stat="identity",fill="white")
+
+
+Bar_Proportion_Minority=summarySE(data = FullData, measurevar = "PropMinority", groupvars = c( "binary_has_dei_program"))
+ggplot(Bar_Proportion_Minority, aes(x=binary_has_dei_program, y=PropMinority,color=binary_has_dei_program)) +  geom_errorbar(aes(ymin=PropMinority-ci, ymax=PropMinority+ci), width=.1) +  geom_bar(stat = "identity", position = "stack")+ylab("Average proportion of Minority Attorneys")+xlab("Presence of DEI Program") + ggtitle("Average Proportion of Minority Attorneys by Presence of DEI program") + theme(plot.title = element_text(hjust = 0.5))+ 
+  geom_bar(stat="identity",fill="white")
+
+Bar_Proportion_Female=summarySE(data = FullData, measurevar = "PropFemale", groupvars = c( "binary_has_dei_program"))
+ggplot(Bar_Proportion_Female, aes(x=binary_has_dei_program, y=PropFemale, color=binary_has_dei_program)) +  geom_errorbar(aes(ymin=PropFemale-ci, ymax=PropFemale+ci), width=.1) +  geom_bar(stat = "identity", position = "stack")+ylab("Average proportion of Female Attorneys")+xlab("Presence of DEI Program") + ggtitle("Average Proportion of Female Attorneys by Presence of DEI program") + theme(plot.title = element_text(hjust = 0.5))+ 
+  geom_bar(stat="identity",fill="white")
+
+
+```
+
+## Regression analysis for MCCA score
+
+The regression run below tests whether having a DEI program significantly predicted the MCCA score. The regression model (Regression 1) did not show a significant relationship between MCCA score and whether a firm had a DEI program. This does not support a hypothesis that having a DEI program increases the likelihood of having a higher MCCA score. 
+
+A follow-up regression analysis (Regression 2), including other predictor variables like number of female attorneys and number of minority attorneys performed similarly. None of the predictor variables tested showed a significant relationship witht the MCCA score.
+
+```{r regressions, echo=FALSE}
+#A simple linear regression using MCCA score as the dependent variable
+print("REgression 1")
+SimpleMCCA_ScoreRegression=lm(mcca_score ~ binary_has_dei_program, data = FullData)
+summary(SimpleMCCA_ScoreRegression)
+
+print("Regression 2")
+#Regression model with additional predictors
+FullMCCA_ScoreRegression=lm(mcca_score ~ binary_has_dei_program + count_female + count_minority, data = FullData)
+summary(FullMCCA_ScoreRegression)
+```
+
+## Moving files up to GitHub
+
+To create a new branch, changed files and commit the changes with an informative message, and push the changes, I would run the following commands:
+
+git branch technical-screen
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
